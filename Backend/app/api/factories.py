@@ -1,5 +1,3 @@
-
-
 from Backend.app.application.login_admin import LoginAdmin
 from Backend.app.application.delete_document import DeleteDocument
 from Backend.app.application.list_documents import ListDocuments
@@ -24,43 +22,37 @@ class AuthFactory:
 
 
 class DocumentFactory:
-    @staticmethod
-    def make_delete() -> DeleteDocument:
-        repository = PostgresDocumentRepository()
-        return DeleteDocument(repository=repository)
 
     @staticmethod
     def make_list() -> ListDocuments:
-        return ListDocuments()
+        return ListDocuments(repository=PostgresDocumentRepository())
 
     @staticmethod
     def make_create() -> CreateDocument:
-        repository = PostgresDocumentRepository()
-        return CreateDocument(repository=repository)
+        return CreateDocument(repository=PostgresDocumentRepository())
 
     @staticmethod
     def make_update() -> UpdateDocument:
-        repository = PostgresDocumentRepository()
-        return UpdateDocument(repository=repository)
+        return UpdateDocument(repository=PostgresDocumentRepository())
+
+    @staticmethod
+    def make_delete() -> DeleteDocument:
+        return DeleteDocument(repository=PostgresDocumentRepository())
 
 
 class UserFactory:
     @staticmethod
     def make_create() -> CreateUser:
-        repository = PostgresUserRepository()
-        return CreateUser(repository=repository)
+        return CreateUser(repository=PostgresUserRepository())
 
     @staticmethod
     def make_list() -> ListUsers:
-        repository = PostgresUserRepository()
-        return ListUsers(repository=repository)
+        return ListUsers(repository=PostgresUserRepository())
 
     @staticmethod
     def make_update() -> UpdateUser:
-        repository = PostgresUserRepository()
-        return UpdateUser(repository=repository)
+        return UpdateUser(repository=PostgresUserRepository())
 
     @staticmethod
     def make_delete() -> DeleteUser:
-        repository = PostgresUserRepository()
-        return DeleteUser(repository=repository)
+        return DeleteUser(repository=PostgresUserRepository())
