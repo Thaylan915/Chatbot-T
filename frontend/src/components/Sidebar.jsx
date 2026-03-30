@@ -11,8 +11,16 @@ import { useNavigate } from "react-router-dom";
 export default function Sidebar({ tipo }) {
   const navigate = useNavigate();
 
+  const nome = localStorage.getItem("nome") || localStorage.getItem("username") || "Usuário";
+  const inicial = nome.charAt(0).toUpperCase();
+
   function irBaseConhecimento() {
     navigate("/admin/base-de-conhecimento");
+  }
+
+  function sair() {
+    localStorage.clear();
+    navigate("/");
   }
 
   return (
@@ -28,11 +36,13 @@ export default function Sidebar({ tipo }) {
       </div>
 
       <div className="menuTop">
+        {/* Disponível para todos os perfis */}
         <div className="item menu">
           <img src={novoChat} className="icon" />
           <span>Novo Chat</span>
         </div>
 
+        {/* Exclusivo para admins */}
         {tipo === "admin" && (
           <>
             <div className="item menu" onClick={irBaseConhecimento}>
@@ -55,7 +65,6 @@ export default function Sidebar({ tipo }) {
 
       <div className="chats">
         <div className="miniTitulo">Seus chats</div>
-        {/* Criar uma classe para chat */}
         <div className="chatItem">Chat sobre IA</div>
         <div className="chatItem">Banco de dados</div>
         <div className="chatItem">Projeto TCC</div>
@@ -65,8 +74,11 @@ export default function Sidebar({ tipo }) {
 
       <div className="perfil">
         <div className="perfilInfo">
-          <div className="avatar">K</div>
-          <div className="nome">Kenzo Annichini de Oliveira</div>
+          <div className="avatar">{inicial}</div>
+          <div className="nome">{nome}</div>
+        </div>
+        <div className="item menu sair" onClick={sair}>
+          <span>Sair</span>
         </div>
       </div>
     </div>

@@ -3,6 +3,8 @@ import Login from "./pages/Login";
 import Cadastro from "./pages/Cadastro";
 import Chat from "./pages/Chat";
 import BaseDeConhecimento from "./pages/BaseDeConhecimento";
+import RotaPrivada from "./components/RotaPrivada";
+import RotaAdmin from "./components/RotaAdmin";
 
 function App() {
   return (
@@ -10,10 +12,21 @@ function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/cadastro" element={<Cadastro />} />
-        <Route path="/admin" element={<Chat />} />
+        <Route
+          path="/admin"
+          element={
+            <RotaPrivada>
+              <Chat />
+            </RotaPrivada>
+          }
+        />
         <Route
           path="/admin/base-de-conhecimento"
-          element={<BaseDeConhecimento />}
+          element={
+            <RotaAdmin>
+              <BaseDeConhecimento />
+            </RotaAdmin>
+          }
         />
       </Routes>
     </BrowserRouter>

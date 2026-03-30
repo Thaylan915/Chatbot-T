@@ -15,6 +15,7 @@ Sistema de chatbot organizado em **monorepo**, com frontend em React, backend em
 - [Configuração do PostgreSQL + Docker](#configuração-do-postgresql--docker)
 - [Variáveis de Ambiente](#variáveis-de-ambiente)
 - [Configuração do Django](#configuração-do-django)
+- [Perfis e Permissões](#perfis-e-permissões)
 - [Rotas da API](#rotas-da-api)
 - [Autenticação JWT](#autenticação-jwt)
 - [Testando com Postman](#testando-com-postman)
@@ -422,10 +423,154 @@ CORS_ALLOWED_ORIGINS = [
 
 ---
 
+## Perfis e Permissões
+
+O sistema possui dois perfis de usuário, controlados pelo campo `is_staff` do model `User` do Django.
+
+### Definição dos Perfis
+
+| Perfil | Condição Django | Descrição |
+|--------|----------------|-----------|
+| `admin` | `is_staff=True` | Acesso completo: chat, base de conhecimento, métricas, histórico e gestão de usuários |
+| `usuario` | `is_staff=False` | Acesso restrito ao chat |
+
+Para criar um usuário admin pela linha de comando:
+```bash
+python manage.py createsuperuser
+```
+
+Para promover um usuário existente a admin pelo shell:
+```bash
+python manage.py shell
+>>> from django.contrib.auth.models import User
+>>> u = User.objects.get(username="nome_do_usuario")
+>>> u.is_staff = True
+>>> u.save()
+```
+
+---
+
+### Token JWT com Claim de Perfil
+
+**Arquivo:** `Backend/app/infrastructure/auth/custom_token.py`
+
+O token de acesso inclui os seguintes campos adicionais no payload:
+
+| Claim | Tipo | Valor |
+|-------|------|-------|
+| `perfil` | string | `"admin"` ou `"usuario"` |
+| `nome` | string | Primeiro nome ou username do usuário |
+| `email` | string | E-mail do usuário |
+
+O frontend lê `perfil` diretamente do `localStorage` (salvo no login) para controlar menus e rotas, sem chamadas extras à API.
+
+---
+
+### Permission Classes (Backend)
+
+**Arquivo:** `Backend/app/api/permissions.py`
+
+| Classe | Condição | Mensagem de erro |
+|--------|----------|-----------------|
+| `IsAdminProfile` | `is_authenticated + is_active + is_staff` | `"Acesso restrito a administradores."` |
+| `IsUsuarioProfile` | `is_authenticated + is_active` | `"Autenticação necessária."` |
+
+`IsAdminProfile` substitui `IsAdminUser` do DRF em todas as views, centralizando a lógica de perfil em um único lugar.
+
+---
+
+### Proteção de Rotas por Endpoint
+
+| Método | Endpoint | Permissão |
+|--------|----------|-----------|
+| `POST` | `/api/auth/login/` | Aberto — qualquer usuário ativo |
+| `POST` | `/api/auth/refresh/` | Aberto |
+| `POST` | `/api/chat/` | Aberto (a ser protegido com `IsUsuarioProfile`) |
+| `GET` | `/api/documents/` | `IsAdminProfile` |
+| `POST` | `/api/documents/` | `IsAdminProfile` |
+| `PATCH` | `/api/documents/<id>/` | `IsAdminProfile` |
+| `DELETE` | `/api/documents/<id>/` | `IsAdminProfile` |
+| `POST` | `/api/documents/<id>/confirm/` | `IsAdminProfile` |
+| `GET` | `/api/users/` | `IsAdminProfile` |
+| `POST` | `/api/users/` | Aberto — auto-cadastro |
+| `PATCH` | `/api/users/<id>/` | `IsAdminProfile` |
+| `DELETE` | `/api/users/<id>/` | `IsAdminProfile` |
+
+---
+
+### Proteção de Rotas no Frontend
+
+**Arquivos:** `frontend/src/components/RotaPrivada.jsx` e `RotaAdmin.jsx`
+
+| Componente | Condição de acesso | Redirecionamento se negado |
+|------------|-------------------|---------------------------|
+| `RotaPrivada` | `localStorage` contém `access_token` | `/` (login) |
+| `RotaAdmin` | Token presente **e** `perfil === "admin"` | `/` sem token · `/admin` se perfil insuficiente |
+
+Uso em `App.jsx`:
+
+```jsx
+// Qualquer usuário autenticado
+<Route path="/admin" element={
+  <RotaPrivada><Chat /></RotaPrivada>
+} />
+
+// Somente admin
+<Route path="/admin/base-de-conhecimento" element={
+  <RotaAdmin><BaseDeConhecimento /></RotaAdmin>
+} />
+```
+
+---
+
+### Restrição de Menus por Perfil
+
+**Arquivo:** `frontend/src/components/Sidebar.jsx`
+
+O `Sidebar` recebe o prop `tipo` (valor: `"admin"` ou `"usuario"`) e exibe apenas os itens permitidos:
+
+| Item de Menu | `usuario` | `admin` |
+|--------------|:---------:|:-------:|
+| Novo Chat | ✓ | ✓ |
+| Base de Conhecimento | — | ✓ |
+| Métricas | — | ✓ |
+| Histórico | — | ✓ |
+| Sair | ✓ | ✓ |
+
+O nome e a inicial do avatar são lidos do `localStorage` (`nome`), exibindo os dados do usuário logado.
+
+---
+
+### Fluxo Completo de Autorização
+
+```
+1. Usuário faz POST /api/auth/login/
+       ↓
+2. Backend autentica, verifica is_active
+   CustomRefreshToken.for_user() injeta perfil no JWT
+       ↓
+3. Resposta: { access, refresh, perfil, nome, email }
+       ↓
+4. Frontend salva no localStorage:
+   access_token, refresh_token, perfil, nome, email
+       ↓
+5. Navegação:
+   → /admin              → RotaPrivada (token presente?)
+   → /admin/base-de-...  → RotaAdmin   (token + perfil=admin?)
+       ↓
+6. Sidebar exibe menus conforme perfil
+       ↓
+7. Chamadas à API incluem:
+   Authorization: Bearer <access_token>
+   Backend verifica IsAdminProfile ou IsUsuarioProfile
+```
+
+---
+
 ## Rotas da API
 
 ### `POST /api/auth/login/`
-Autentica o administrador e retorna tokens JWT.
+Autentica qualquer usuário ativo e retorna tokens JWT com o perfil embutido no payload.
 
 ```json
 // Request
@@ -436,11 +581,15 @@ Autentica o administrador e retorna tokens JWT.
   "access": "eyJ...",
   "refresh": "eyJ...",
   "username": "seu_usuario",
-  "email": "email@exemplo.com"
+  "email": "email@exemplo.com",
+  "nome": "Nome do Usuário",
+  "perfil": "admin"
 }
 ```
 
-Erros: `400` campos em branco · `401` credenciais inválidas ou usuário sem `is_staff`.
+O campo `perfil` retorna `"admin"` (se `is_staff=True`) ou `"usuario"`.
+
+Erros: `400` campos em branco · `401` credenciais inválidas ou conta desativada.
 
 ---
 
@@ -631,14 +780,17 @@ Erros: `400` ID ou token inválido · `401` sem token ou sem `is_staff` · `403`
 O fluxo de autenticação funciona da seguinte forma:
 
 1. O usuário faz login via `POST /api/auth/login/`
-2. A API retorna os tokens `access` e `refresh`
+2. A API retorna `access`, `refresh`, `perfil`, `nome` e `email`
 3. O token `access` é enviado no header das rotas protegidas:
 
 ```http
 Authorization: Bearer SEU_TOKEN
 ```
 
-4. Nas rotas administrativas, o token é validado e o `is_staff` é verificado.
+4. O backend valida o token e aplica a permission class correspondente (`IsAdminProfile` ou `IsUsuarioProfile`)
+5. O frontend usa o `perfil` salvo no `localStorage` para controlar menus e rotas sem chamadas extras à API
+
+O token de acesso contém os claims customizados `perfil`, `nome` e `email` — injetados por `CustomRefreshToken` (`Backend/app/infrastructure/auth/custom_token.py`).
 
 ---
 
@@ -848,8 +1000,14 @@ python manage.py createsuperuser
 - [ ] Implementar Strategy Pattern — `infrastructure/llm/gemini_provider.py`
 - [ ] Implementar Facade Pattern — `application/answer_question.py` (fluxo RAG completo)
 - [ ] Gerar embeddings via Gemini e popular a coluna `embedding_vector`
-- [ ] Implementar `permissions.py` — permissões customizadas para rotas admin
-- [ ] Conectar o frontend ao login e ao chat
+- [x] Implementar `permissions.py` — `IsAdminProfile` e `IsUsuarioProfile`
+- [x] Conectar o frontend ao login (`Login.jsx` e `Cadastro.jsx` integrados à API)
+- [x] CRUD completo de usuários (`POST/GET /api/users/`, `PATCH/DELETE /api/users/<id>/`)
+- [x] Autorização por perfil — JWT com claim `perfil`, `RotaPrivada`, `RotaAdmin`
+- [x] Restrição de menus no `Sidebar` por perfil (`admin` vs `usuario`)
+- [ ] Implementar Strategy Pattern — `infrastructure/llm/gemini_provider.py`
+- [ ] Implementar Facade Pattern — `application/answer_question.py` (fluxo RAG completo)
+- [ ] Gerar embeddings via Gemini e popular a coluna `embedding_vector`
 - [ ] Dashboard de métricas e relatórios (#68–#75)
 - [ ] Adicionar testes automatizados
 

@@ -5,25 +5,26 @@ Requer autenticação JWT — apenas administradores (is_staff=True).
 
 Rotas:
     GET    /api/documents/                     → listar documentos
-    POST   /api/documents/                     → criar documento
+    POST   /api/documents/create/              → criar documento
     PATCH  /api/documents/<id>/                → editar documento
-    DELETE /api/documents/<id>/                → solicitar exclusão (retorna token)
+    DELETE /api/documents/<id>/delete/         → solicitar exclusão (retorna token)
     DELETE /api/documents/<id>/confirm/        → confirmar exclusão com token
 """
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
 
 from Backend.app.api.factories import DocumentFactory
+from Backend.app.api.permissions import IsAdminProfile
 
 
 class DocumentListView(APIView):
     """
     GET /api/documents/  → lista todos os documentos no banco.
     """
-    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    permission_classes = [IsAdminProfile]
 
     def get(self, request):
         try:
@@ -35,14 +36,15 @@ class DocumentListView(APIView):
 
 class DocumentCreateView(APIView):
     """
-    POST /api/documents/  → cria documento, faz upload no Gemini e persiste no banco.
+    POST /api/documents/create/  → cria documento, faz upload no Gemini e persiste no banco.
 
     Multipart form-data esperado:
         arquivo  (File)    — PDF obrigatório
         nome     (string)  — nome do documento
         tipo     (string)  — portaria | resolucao | rod
     """
-    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    permission_classes = [IsAdminProfile]
 
     def post(self, request):
         arquivo = request.FILES.get("arquivo")
@@ -74,7 +76,7 @@ class DocumentCreateView(APIView):
             resultado = DocumentFactory.make_create().executar(
                 nome=nome,
                 tipo=tipo,
-                conteudo_arquivo=arquivo.read(),   # ← nome correto do parâmetro
+                conteudo_arquivo=arquivo.read(),
                 nome_arquivo=arquivo.name,
             )
             return Response(resultado, status=status.HTTP_201_CREATED)
@@ -93,7 +95,8 @@ class DocumentDetailView(APIView):
         tipo     (string)  — portaria | resolucao | rod
         arquivo  (File)    — novo PDF para substituir o atual
     """
-    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    permission_classes = [IsAdminProfile]
 
     def patch(self, request, id_documento: int):
         nome = request.data.get("nome") or None
@@ -117,7 +120,7 @@ class DocumentDetailView(APIView):
                 id_documento=id_documento,
                 nome=nome,
                 tipo=tipo,
-                conteudo_arquivo=arquivo.read() if arquivo else None,  # ← nome correto
+                conteudo_arquivo=arquivo.read() if arquivo else None,
                 nome_arquivo=arquivo.name if arquivo else None,
             )
             return Response(resultado, status=status.HTTP_200_OK)
@@ -131,7 +134,7 @@ class DocumentDetailView(APIView):
 
 class DocumentDeleteView(APIView):
     """
-    DELETE /api/documents/<id>/
+    DELETE /api/documents/<id>/delete/
 
     Passo 1 do fluxo de exclusão: verifica se o documento existe
     e retorna um token de confirmação válido por 5 minutos.
@@ -143,7 +146,8 @@ class DocumentDeleteView(APIView):
             "expires_in": 300
         }
     """
-    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    permission_classes = [IsAdminProfile]
 
     def delete(self, request, id_documento: int):
         try:
@@ -173,7 +177,8 @@ class DocumentConfirmDeleteView(APIView):
             "id": 1
         }
     """
-    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    permission_classes = [IsAdminProfile]
 
     def delete(self, request, id_documento: int):
         token = request.data.get("token", "").strip()

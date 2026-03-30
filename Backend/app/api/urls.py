@@ -10,6 +10,7 @@ from Backend.app.api.views.documents import (
     DocumentDeleteView,
     DocumentConfirmDeleteView,
 )
+from Backend.app.api.views.users import UserListView, UserDetailView
 
 urlpatterns = [
     # ── Auth ──────────────────────────────────────────────────────────────────
@@ -27,11 +28,18 @@ urlpatterns = [
          DocumentCreateView.as_view(),  name="document_create"),
 
     path("documents/<int:id_documento>/",
-         DocumentDetailView.as_view(),  name="document_detail"),          # PATCH
+         DocumentDetailView.as_view(),  name="document_detail"),
 
     path("documents/<int:id_documento>/delete/",
-         DocumentDeleteView.as_view(),  name="document_delete"),          # DELETE → step 1
+         DocumentDeleteView.as_view(),  name="document_delete"),
 
     path("documents/<int:id_documento>/confirm/",
-         DocumentConfirmDeleteView.as_view(), name="document_confirm_delete"),  # DELETE → step 2
+         DocumentConfirmDeleteView.as_view(), name="document_confirm_delete"),
+
+    # ── Usuários — CRUD completo ──────────────────────────────────────────────
+    path("users/",
+         UserListView.as_view(),   name="user_list"),
+
+    path("users/<int:user_id>/",
+         UserDetailView.as_view(), name="user_detail"),
 ]

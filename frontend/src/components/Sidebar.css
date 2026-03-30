@@ -116,6 +116,16 @@ img {
   font-size: 18px;
 }
 
+.sair {
+  color: #e57373;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.sair:hover {
+  background-color: #3a2323;
+}
+
 @media (max-width: 768px) {
   .sidebar {
     width: 200px;
